@@ -106,6 +106,7 @@ class FaultController{
             $attributes = [];
             $data = $request->params();
             $data = is_object($data) ? (array)$data : $data;
+            
 
             if($data){ 
                 $token = $data[1] ?? null;
@@ -123,9 +124,6 @@ class FaultController{
     
                 return $res;
             }
-
-
-
             
 
         }   
@@ -138,6 +136,56 @@ class FaultController{
     
     }
 
+    public function countFaults(Request $request)
+    {
+        try{
+            $condition = [];
+            $params = $request->params();
+            $params = is_object($params) ? (array)$params : $params;
+
+            $data = $request->raw(); //raw data take precedence
+            $data = is_object($data) ? (array)$data : $data;
+            $keyname = 'count'; //default name for count
+
+            if($data || $params){ 
+                $token = $params[1] ?? null;
+                $condition['user_id'] = htmlspecialchars(trim(stripcslashes($params[0])));
+    
+
+                foreach($data as $key => $value){
+                    if($key == 'AccessToken'){
+                        $token = $value;
+                    }
+
+                    if($key == 'keyname'){
+                        $keyname = $value;
+                    }
+    
+                    $condition[$key] = htmlspecialchars(trim(stripcslashes($value)));                    
+                }
+
+                
+                $faults = new Fault;
+                $res = $faults->count($condition,$keyname);
+                
+                return $res;
+            }
+            else{
+                $faults = new Fault;
+                $res = $faults->count();
+                
+                return $res;
+            }
+        }
+        catch(Exception $e){
+            return $res = [
+                'message' => $e->getMessage(),
+                'status' => '404'
+            ];
+        }
+    }
+
+ 
 
     
 }

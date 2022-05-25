@@ -84,57 +84,66 @@ class Model
         else{
             $data = is_object($data) ? (array)$data : $data;
 
-        $attributes = [];
+            $attributes = [];
 
-        foreach ($data as $key => $value) {
-            if (property_exists($this, $key)) {
-                $attributes[$key] = $value;
+            foreach ($data as $key => $value) {
+                if (property_exists($this, $key)) {
+                    $attributes[$key] = $value;
+                }
             }
-        }
 
-        $attribute = array_keys($attributes);
+            $attribute = array_keys($attributes);
 
-        $sql = implode(" AND ", array_map(fn($key) => "$key = :$key", $attribute));
+            $sql = implode(" AND ", array_map(fn($key) => "$key = :$key", $attribute));
 
-        $statement = $this->database->prepare("SELECT * FROM `{$this->table}` WHERE $sql");
+            $statement = $this->database->prepare("SELECT * FROM `{$this->table}` WHERE $sql");
 
-        foreach ($attributes as $key => $value) {
-            $statement->bindValue(":$key", $value);
-        }
+            foreach ($attributes as $key => $value) {
+                $statement->bindValue(":$key", $value);
+            }
 
-        $statement->execute();
+            $statement->execute();
 
-        return $statement->fetchAll(PDO::FETCH_OBJ);
+            return $statement->fetchAll(PDO::FETCH_OBJ);
         }
     }
     
     
-    public function count($condition)
+    public function count($condition = null,$keyname = 'count')
     {
-
-        $condition = is_object($condition) ? (array)$condition : $condition;
-
-        $attributes = [];
-
-        foreach ($condition as $key => $value) {
-            if (property_exists($this, $key)) {
-                $attributes[$key] = $value;
+        if($condition == null){
+            $statement = $this->database->prepare("SELECT COUNT(*) as $keyname FROM `{$this->table}`");
+    
+            $statement->execute();
+    
+            return $statement->fetchAll(PDO::FETCH_OBJ);
+        }
+        else{
+            $condition = is_object($condition) ? (array)$condition : $condition;
+    
+            $attributes = [];
+    
+            foreach ($condition as $key => $value) {
+                if (property_exists($this, $key)) {
+                    $attributes[$key] = $value;
+                }
             }
+    
+            $attribute = array_keys($attributes);
+    
+            $sql = implode(" AND ", array_map(fn($key) => "$key = :$key", $attribute));
+    
+            $statement = $this->database->prepare("SELECT COUNT(*) as $keyname FROM `{$this->table}` WHERE $sql");
+    
+            foreach ($attributes as $key => $value) {
+                $statement->bindValue(":$key", $value);
+            }
+    
+            $statement->execute();
+    
+            return $statement->fetch(PDO::FETCH_OBJ);
+
         }
-
-        $attribute = array_keys($attributes);
-
-        $sql = implode(" AND ", array_map(fn($key) => "$key = :$key", $attribute));
-
-        $statement = $this->database->prepare("SELECT COUNT(*) as count FROM `{$this->table}` WHERE $sql");
-
-        foreach ($attributes as $key => $value) {
-            $statement->bindValue(":$key", $value);
-        }
-
-        $statement->execute();
-
-        return $statement->fetch(PDO::FETCH_OBJ);
     }
 
     public function insert($data)

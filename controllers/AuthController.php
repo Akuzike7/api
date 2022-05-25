@@ -2,6 +2,7 @@
 
 namespace controllers;
 
+use core\exceptions\NotFoundException;
 use core\Request;
 use Exception;
 use models\User;
@@ -9,12 +10,13 @@ use core\Token;
 use models\Verification;
 use core\PHPMailer\src\PHPMailer;
 use core\PHPMailer\src\SMTP;
+use Error;
 
-
-class AuthController {
+class AuthController
+{
     public function login(Request $request)
     {
-        
+
         $uname = $request->raw()->uname;
         $password = $request->raw()->password;
 
@@ -23,38 +25,36 @@ class AuthController {
 
         $user = new User;
 
-        
-        if(filter_var($uname,FILTER_VALIDATE_EMAIL)){
+        if (filter_var($uname, FILTER_VALIDATE_EMAIL)) {
             $user = $user->find([
                 "email" => $uname
             ]);
-        }
-        else{
+        } else {
             $user = $user->find([
                 "username" => $uname
             ]);
         }
-        
-        if($user){
-            if(password_verify($password,$user->password)){
+
+        if ($user) {
+            if (password_verify($password, $user->password)) {
                 $payload = [
-                    "id" =>$user->id,
-                    "email" =>$user->email,
-                    "role" =>$user->role_id
+                    "id" => $user->id,
+                    "email" => $user->email,
+                    "role" => $user->role_id
                 ];
-                $AccessToken = Token::generate($payload);
-                
+                $AccessToken = Token::generate_access_token($payload);
+                $RefreshToken = Token::generate_refresh_token($payload);
+
                 return $res = [
                     'AccessToken' => $AccessToken,
+                    'RefreshToken' => $RefreshToken,
                     'user' => [
                         'id' => $user->id,
                         'role_id' => $user->role_id
                     ],
                     'status' => '200'
                 ];
-               
-            }
-            else{
+            } else {
                 return $error = [
                     'message' => 'Bad Creditionals',
                     'status' => '404'
@@ -68,15 +68,15 @@ class AuthController {
         }
     }
 
-    public function register(Request $request) 
+    public function register(Request $request)
     {
-          $code = bin2hex(random_bytes(2));
-          $code = strtoupper($code);
-          $timezone = date("e");
+        $code = bin2hex(random_bytes(2));
+        $code = strtoupper($code);
+        $timezone = date("e");
 
-          return $res = [
-              'code' => $code
-          ];
+        return $res = [
+            'code' => $code
+        ];
     }
 
     public function forgotPassword(Request $request)
@@ -87,33 +87,31 @@ class AuthController {
 
         $user = new User;
 
-        if(filter_var($uname,FILTER_VALIDATE_EMAIL)){
+        if (filter_var($uname, FILTER_VALIDATE_EMAIL)) {
             $user = $user->find([
                 "email" => $uname
             ]);
-        }
-        else{
+        } else {
             $user = $user->find([
                 "username" => $uname
             ]);
         }
-        
-        
-      //authenticating creditionals
 
-       if($user){
-            try
-            {
+
+        //authenticating creditionals
+
+        if ($user) {
+            try {
                 $verification = new Verification;
 
                 $code = bin2hex(random_bytes(2));
                 $code = strtoupper($code);
-                $verification->hashedCode = password_hash($code,PASSWORD_DEFAULT);
+                $verification->hashedCode = password_hash($code, PASSWORD_DEFAULT);
                 $verification->status = "Active";
-                
+
                 $mail = new PHPMailer(true);
 
-              //$mail->SMTPDebug = SMTP::DEBUG_SERVER; 
+                //$mail->SMTPDebug = SMTP::DEBUG_SERVER; 
                 $mail->isSMTP();
                 $mail->SMTPAuth = true;
                 $mail->SMTPSecure = "SSL";
@@ -123,44 +121,37 @@ class AuthController {
                 $mail->Host = 'smtp.gmail.com';
                 $mail->port = '465';
 
-                $mail->setFrom('testingqwikt@gmail.com','Maintenance-Portal');
+                $mail->setFrom('testingqwikt@gmail.com', 'Maintenance-Portal');
                 $mail->isHTML(true);
                 $mail->Subject = "Reset Password";
                 $mail->Body = "Verification code: $code";
                 $mail->addAddress($user->email);
-            
+
 
                 $mail->send();
 
                 $verification->insert([
-                    'email' =>$user->email,
-                    'hashed_code' =>$verification->hashedCode,
-                    'status' =>$verification->status
+                    'email' => $user->email,
+                    'hashed_code' => $verification->hashedCode,
+                    'status' => $verification->status
                 ]);
-                
+
                 return $res = [
                     'message' => 'Verification code sent',
                     'status' => '200'
                 ];
-
-
-            }
-            catch(Exception $e)
-            {
+            } catch (Exception $e) {
                 return $res = [
                     'message' => $e->getMessage(),
                     'status' => '400',
                 ];
-            
             }
-       } 
-       else{
-        return $res = [
-            'message' => 'Verification code not sent',
-            'status' => '400',
-        ];
-
-       }  
+        } else {
+            return $res = [
+                'message' => 'Verification code not sent',
+                'status' => '400',
+            ];
+        }
     }
 
     public function verifyCode(Request $request)
@@ -168,7 +159,7 @@ class AuthController {
         $uname = $request->raw()->uname;
         $code = $request->raw()->code;
 
-        if(empty($uname) || empty($code)){
+        if (empty($uname) || empty($code)) {
             return $res = [
                 'message' => 'empty fields',
                 'status' => '400'
@@ -185,18 +176,49 @@ class AuthController {
             'status' => 'Active'
         ]);
 
-        if(password_verify($code,$codes->hashed_code)){
+        if (password_verify($code, $codes->hashed_code)) {
             return $res = [
                 'message' => "authenticated",
                 'status' => '200'
             ];
-        }else{
+        } else {
             return $res = [
                 'message' => "Incorrect code",
                 'status' => '400'
             ];
         }
+    }
+
+    public function validateToken(Request $request)
+    {
+        try {
+            $token = new Token;
+
+            $payload = $token::validate_access_token();
+
+            return $payload;
+        } catch (Exception $e) {
+            return  $res = [
+                'message' => "Invalid token",
+                'status' => 400,
+                'exception' => $e->getMessage()
+            ];
+        }
+    }
+
+    public function validate(Request $request)
+    {
+
+        $user = new User;
+
+        $payload = Token::validate_refresh_token();
+
+        throw new NotFoundException('No data tu');
+
+        if(!$user->find(['id' => $payload->user->id])) throw new NotFoundException();
+
         
+
     }
 
     public function reset(Request $request)
@@ -204,59 +226,56 @@ class AuthController {
         $uname = $request->raw()->uname;
         $password = $request->raw()->password;
 
-        if(empty($uname) || empty($password)){
+        if (empty($uname) || empty($password)) {
             return $res = [
                 'message' => 'empty fields',
                 'status' => '400'
             ];
         }
-        
+
 
         $uname = htmlspecialchars(trim(stripcslashes($uname)));
         $password = htmlspecialchars(trim(stripcslashes($password)));
 
-        $hashedPassword = password_hash($password,PASSWORD_DEFAULT);
+        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
         $user = new User;
 
-        
-        if(filter_var($uname,FILTER_VALIDATE_EMAIL)){
+
+        if (filter_var($uname, FILTER_VALIDATE_EMAIL)) {
             $user = $user->find([
                 "email" => $uname
             ]);
 
-            if($user){
+            if ($user) {
                 $id = $user->id;
                 $user = new User;
-    
+
                 $user = $user->update([
                     'password' => $hashedPassword
-                ],[
+                ], [
                     'id' => $id
                 ]);
 
                 return $user;
             }
-
-        }
-        else{
+        } else {
             $user = $user->find([
                 "username" => $uname
             ]);
 
-            if($user){
+            if ($user) {
                 $id = $user->id;
                 $user = new User;
-    
+
                 $user = $user->update([
                     'password' => $hashedPassword
-                ],[
+                ], [
                     'id' => $id
                 ]);
 
                 return $user;
             }
-
         }
     }
 }

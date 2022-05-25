@@ -4,43 +4,77 @@ namespace core;
 
 use Exception;
 
+use function PHPSTORM_META\type;
+use Error;
+
 class Token
 {
     protected $key = 123456;
 
-    private const ACCESS_TOKEN_LIFETIME = "5 minutes";
+    private const ACCESS_TOKEN_LIFETIME = "60 sec";
     private const REFRESH_TOKEN_LIFETIME = "90 days";
 
-    public static function generate($client)
+    public static function generate_access_token($client)
     {
         $paylod = [
             'iat' => time(),
             'iss' => 'localhost',
-            'exp' => self::ACCESS_TOKEN_LIFETIME,  //
+            'exp' => time() + (60 * 2),  //
             'user' => $client,
+            'type' => 'access'
+        ];
+
+        return $token = JWT::encode($paylod, 123456);
+    }
+    public static function generate_refresh_token($client)
+    {
+        $paylod = [
+            'iat' => time(),
+            'iss' => 'localhost',
+            'exp' => self::REFRESH_TOKEN_LIFETIME,  //
+            'user' => $client,
+            'type' => 'refresh'
         ];
 
         return $token = JWT::encode($paylod, 123456);
     }
 
-    public static function validate()
+    public static function validate_access_token()
     {
-
-        $token = self::bearerToken();
-
-        $payload = JWT::decode($token, 123456, ['HS256']);
-
-        return $payload;
+        try
+        {
+            $token = self::bearerToken();
+    
+            $payload = JWT::decode($token, 123456, ['HS256']);
+    
+            return $payload;
+        }
+        catch(Exception $e)
+        {
+            return $res = [
+                'message' => $e->getMessage(),
+                'status' => '401'
+            ];
+        }
     }
 
     public static function validate_refresh_token()
     {
+        try
+        {
+            $token = self::bearerToken();
 
-        $token = self::bearerToken();
+            $payload = JWT::decode($token, 123456, ['HS256']);
 
-        $payload = JWT::decode($token, 123456, ['HS256']);
-
-        return $payload;
+            return $payload;
+        }
+        catch(Exception $e)
+        {
+            return $res = [
+                'message' => $e->getMessage(),
+                'status' => '401'
+            ];
+        }
     }
 
     public static function authorizationHeader()
@@ -70,7 +104,8 @@ class Token
         $headers = self::authorizationHeader();
 
         if (!empty($headers)) {
-            if (preg_match('/Bearers\s(\S+)/', $headers, $matches)) {
+            
+            if (preg_match('/Bearer\s(\S+)/', $headers, $matches)) {
                 return $matches[1];
             }
         }

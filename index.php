@@ -14,15 +14,21 @@ $app->router->get('/user', []);
 
 $app->router->get('/faults',[FaultController::class,'getFaults'] );
 
+$app->router->get('/getCount',[FaultController::class,'countFaults'] );
+
 $app->router->get('/getRemark',[RemarkController::class,'getRemark'] );
 
 $app->router->get('/getAllRemarks',[RemarkController::class,'getAllRemarks'] );
 
 $app->router->post('/login', [AuthController::class, 'login']);
 
+$app->router->post('/token', [AuthController::class, 'validate']);
+
 $app->router->post('/register', [AuthController::class, 'register']);
 
 $app->router->post('/forgotPassword', [AuthController::class, 'forgotPassword']);
+
+$app->router->post('/validateToken', [AuthController::class, 'validateToken']);
 
 $app->router->post('/reset', [AuthController::class, 'reset']);
 
